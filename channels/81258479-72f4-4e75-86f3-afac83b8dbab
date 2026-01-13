@@ -1,0 +1,477 @@
+<channel version="4.6.0">
+  <id>81258479-72f4-4e75-86f3-afac83b8dbab</id>
+  <nextMetaDataId>2</nextMetaDataId>
+  <name>13_Registration_Polling</name>
+  <description></description>
+  <revision>5</revision>
+  <sourceConnector version="4.6.0">
+    <metaDataId>0</metaDataId>
+    <name>sourceConnector</name>
+    <properties class="com.mirth.connect.connectors.js.JavaScriptReceiverProperties" version="4.6.0">
+      <pluginProperties/>
+      <pollConnectorProperties version="4.6.0">
+        <pollingType>INTERVAL</pollingType>
+        <pollOnStart>false</pollOnStart>
+        <pollingFrequency>60000</pollingFrequency>
+        <pollingHour>0</pollingHour>
+        <pollingMinute>0</pollingMinute>
+        <cronJobs/>
+        <pollConnectorPropertiesAdvanced>
+          <weekly>true</weekly>
+          <inactiveDays>
+            <boolean>false</boolean>
+            <boolean>false</boolean>
+            <boolean>false</boolean>
+            <boolean>false</boolean>
+            <boolean>false</boolean>
+            <boolean>false</boolean>
+            <boolean>false</boolean>
+            <boolean>false</boolean>
+          </inactiveDays>
+          <dayOfMonth>1</dayOfMonth>
+          <allDay>true</allDay>
+          <startingHour>8</startingHour>
+          <startingMinute>0</startingMinute>
+          <endingHour>17</endingHour>
+          <endingMinute>0</endingMinute>
+        </pollConnectorPropertiesAdvanced>
+      </pollConnectorProperties>
+      <sourceConnectorProperties version="4.6.0">
+        <responseVariable>None</responseVariable>
+        <respondAfterProcessing>true</respondAfterProcessing>
+        <processBatch>false</processBatch>
+        <firstResponse>false</firstResponse>
+        <processingThreads>1</processingThreads>
+        <resourceIds class="linked-hash-map">
+          <entry>
+            <string>Default Resource</string>
+            <string>[Default Resource]</string>
+          </entry>
+        </resourceIds>
+        <queueBufferSize>1000</queueBufferSize>
+      </sourceConnectorProperties>
+      <script>var msgOut = &quot;&quot;;
+var dbConn = null;
+
+try {
+    var getDatabaseConnection = globalMap.get(&apos;getDatabaseConnection&apos;);
+    var dbConn = getDatabaseConnection(&apos;AINU_UAT&apos;, &apos;Base&apos;);
+    var dbConnSlave = getDatabaseConnection(&apos;AINU_UAT&apos;, &apos;Base&apos;);
+    var dbConnMaster = getDatabaseConnection(&apos;AINU_UAT&apos;, &apos;Master&apos;);
+    var dbConnMasterSlave = getDatabaseConnection(&apos;AINU_UAT&apos;, &apos;Master&apos;);
+
+    //Create and execute a SQL query for Registration
+    try {
+        var RegisQuery= &quot;select FirstName, MiddleName, LastName, MobileNo, RegistrationNo, RegistrationId,DATE_FORMAT(RegistrationDate, &apos;%Y-%m-%d %H:%i:%s.%f&apos;) AS RegistrationDate , Id, FacilityId, EnterpriseId, Email,TitleId,WhatsAppNumber, MobileCountryCode, WhatsAppCountryCode from Registration WHERE CommunicationSent = 0 and Active = 1  limit 20&quot;;
+        var registrationData = dbConnSlave.executeCachedQuery(RegisQuery);
+        while (registrationData.next()) {
+            var finalMsg = {};
+            //finalMsg.Id = registrationData.getString(8) != null ? registrationData.getString(8) : &quot;&quot;;
+            finalMsg.PATFN = registrationData.getString(1) != null ? registrationData.getString(1) : &quot;&quot;;
+            finalMsg.PATMN = registrationData.getString(2) != null ? registrationData.getString(2) : &quot;&quot;;
+            finalMsg.PATLN = registrationData.getString(3) != null ? registrationData.getString(3) : &quot;&quot;;
+            finalMsg.PATMB = registrationData.getString(4) != null ? registrationData.getString(4) : &quot;&quot;;
+            finalMsg.UHIDMR = registrationData.getString(5) != null ? registrationData.getString(5) : &quot;&quot;;
+            finalMsg.UHID = registrationData.getString(5) != null ? registrationData.getString(5) : &quot;&quot;;
+            finalMsg.REGDTTM = registrationData.getString(7) != null ? registrationData.getString(7) : &quot;&quot;;
+            var Id = registrationData.getInt(8) != null ? registrationData.getInt(8) : &quot;&quot;;
+            finalMsg.Id = registrationData.getInt(8) != null ? registrationData.getInt(8) : &quot;&quot;;
+            finalMsg.facilityId = registrationData.getString(9) != null ? registrationData.getString(9) : &quot;&quot;;
+            finalMsg.enterprise_id = registrationData.getString(10) != null ? registrationData.getString(10) : &quot;&quot;;
+            finalMsg.PATEMAIL = registrationData.getString(11) != null ? registrationData.getString(11) : &quot;&quot;;
+            var TitleId = registrationData.getString(12) != null ? registrationData.getString(12) : &quot;&quot;;
+            finalMsg.PATWMB = registrationData.getString(13) != null ? registrationData.getString(13) : &apos;&apos;;
+            var mobCod = registrationData.getString(14) != null ? registrationData.getString(14) : &apos;&apos;;
+            var whatsCod = registrationData.getString(15) != null ? registrationData.getString(15) : &apos;&apos;;
+
+
+
+            //fetch hospitals name from AM_Facility table using master database
+            try {
+                var hospitalQuery = &quot;select Description,contactNo, emergencyContactNo, email, address1  from AM_Facility where Id = &quot; + finalMsg[&apos;facilityId&apos;] + &quot;&quot;;
+                var hospitalData = dbConnMasterSlave.executeCachedQuery(hospitalQuery);
+
+                while (hospitalData.next()) {
+                    finalMsg.HOSPNM = hospitalData.getString(1);
+                    finalMsg.HSPNUM = hospitalData.getString(2);
+                    finalMsg.HSPENUM = hospitalData.getString(3);
+                    finalMsg.FACILITYEMAIL = hospitalData.getString(4);
+                    finalMsg.FACILITYADDRESS = hospitalData.getString(5);
+                }
+            } catch (e) {
+                logger.error(&quot;unable to fetch from master table   &quot; + e);
+            }
+
+            if (TitleId) {
+                try {
+                    var titleQuery = &quot;SELECT Description FROM AM_Title WHERE Id = &quot; + TitleId + &quot;&quot;;
+                    var titleDataRes = dbConnMasterSlave.executeCachedQuery(titleQuery);
+                    while (titleDataRes.next()) {
+                        finalMsg.PTTITLE = titleDataRes.getString(1);
+                    }
+                } catch (e) {
+                    logger.error(&quot;Unable to fetch Details from AM_Title in channel &quot; + channelName + &quot;&quot; + e);
+                }
+            }
+            //Updating query.......					
+            var UpdateregistrationQuery = &quot;UPDATE Registration SET CommunicationSent = 1 WHERE Id=&quot; + Id + &quot;&quot;;
+            var UpdateregistrationData = dbConn.executeUpdate(UpdateregistrationQuery);
+
+            //whatsapp and mobile code
+            finalMsg.PATMBWC = mobCod + finalMsg.PATMB;
+            finalMsg.PATWMB = finalMsg.PATWMB != &apos;&apos; ? finalMsg.PATWMB : finalMsg.PATMB;
+            finalMsg.PATWMBWC = finalMsg.PATWMB == finalMsg.PATMB ? finalMsg.PATMBWC : whatsCod + finalMsg.PATWMB;
+
+            msgOut += JSON.stringify(finalMsg) + &quot;,&quot;;
+        }
+
+        msgOut = msgOut.substring(0, msgOut.length - 1);
+
+        if (msgOut.length != 0) {
+            return (&quot;[&quot; + msgOut + &quot;]&quot;);
+        }
+    } catch (e) {
+        logger.error(&quot;patient&quot; + e)
+    }
+} catch (e) {
+    // Handle exeptions
+    logger.error(&apos;Error executing database query: &apos; + e);
+} finally {
+    if (dbConn != null) {
+        dbConn.close();
+    }
+    if (dbConnSlave != null) {
+        dbConnSlave.close();
+    }
+    if (dbConnMaster != null) {
+        dbConnMaster.close();
+    }
+    if (dbConnMasterSlave != null) {
+        dbConnMasterSlave.close();
+    }
+}</script>
+    </properties>
+    <transformer version="4.6.0">
+      <elements>
+        <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.6.0">
+          <name>RegistrationFilter</name>
+          <sequenceNumber>0</sequenceNumber>
+          <enabled>true</enabled>
+          <script>for each(event in msg) {
+    var msgSentTo = [];
+    var facilityId = event[&apos;facilityId&apos;].toString();
+
+    event.triggerEvent = &quot;REG-NEW&quot;;
+    event.REGDTTM = event[&apos;REGDTTM&apos;] != null ? dateTimeConverter(DateUtil.convertDate(&apos;yyyy-MM-dd HH:mm:ss&apos;, &apos;yyyyMMddHHmmssSSS&apos;, event[&apos;REGDTTM&apos;].toString().substring(0, 20)), &quot;Asia/Kolkata&quot;, &quot;UTC&quot;) : &quot;&quot;;
+    event.REGDT = event[&apos;REGDTTM&apos;].toString().substring(0, 11);
+    event.REGT = event[&apos;REGDTTM&apos;].toString().substring(11, 20);
+    event.PTFLNM = (event[&apos;PATFN&apos;] ? event[&apos;PATFN&apos;] + &apos; &apos; : &apos;&apos;) + (event[&apos;PATMN&apos;] ? event[&apos;PATMN&apos;] + &apos; &apos; : &apos;&apos;) + event[&apos;PATLN&apos;];
+    var generateFullName = globalMap.get(&apos;generateFullName&apos;);
+    event.SPTFLNM = generateFullName(event[&apos;PTTITLE&apos;], event[&apos;PATFN&apos;], event[&apos;PATMN&apos;], event[&apos;PATLN&apos;]);
+
+    channelMap.put(&quot;enterpriseId&quot;, event[&apos;enterprise_id&apos;].toString());
+    channelMap.put(&quot;facilityId&quot;, facilityId);
+    channelMap.put(&quot;triggerEvent&quot;, event[&apos;triggerEvent&apos;].toString());
+    channelMap.put(&quot;Id&quot;, event[&apos;Id&apos;].toString());
+
+    var routingConfigs = JSON.parse(configurationMap.get(&apos;Communication_Flag&apos;));
+    var waActualEvents = routingConfigs[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;waActualEvents&apos;];
+    var smsActualEvents = routingConfigs[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;smsActualEvents&apos;];
+    var emailActualEvents = routingConfigs[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;emailActualEvents&apos;];
+    var sendSMS = routingConfigs[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;sms&apos;];
+    var sendWA = routingConfigs[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;whatsApp&apos;];
+    var sendEmail = routingConfigs[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;email&apos;];
+    var smsCountryCod = routingConfigs[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;smsCountryCod&apos;];
+    var whatsCountryCode = routingConfigs[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;whatsCountryCode&apos;];
+    channelMap.put(&quot;sendWA&quot;, sendWA);
+    channelMap.put(&quot;sendSMS&quot;, sendSMS);
+
+    var facilityId = &quot;&quot; + $(&apos;facilityId&apos;) + &quot;&quot;;
+    var currentEvent = &quot;&quot; + $(&apos;triggerEvent&apos;) + &quot;&quot;;
+
+    var routingEvents = JSON.parse(configurationMap.get(&apos;configureEvent&apos;));
+    var patientMobile = routingEvents[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;patientMobile&apos;];
+
+    //for staff
+    var routingStaffEvents = JSON.parse(configurationMap.get(&apos;staffEvents&apos;));
+    var staffEvents = routingStaffEvents[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][&apos;staffEvents&apos;];
+    var staffNo = [];
+    var staffFlag;
+    if (staffEvents.includes(currentEvent)) {
+        staffFlag = routingStaffEvents[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][currentEvent][&apos;flag&apos;];
+        staffNo = routingStaffEvents[$(&apos;enterpriseId&apos;)][$(&apos;facilityId&apos;)][currentEvent][&apos;staffN0&apos;];
+    }
+
+    if ($(&apos;enterpriseId&apos;) == 15) {
+        var suFacIds = [&quot;54&quot;, &apos;55&apos;, &quot;56&quot;, &quot;57&quot;, &quot;58&quot;, &quot;59&quot;, &quot;60&quot;];
+        if (suFacIds.includes(facilityId)) {
+            event.MOBILE = &quot;&quot;;
+            event.WHATSAPP = &quot;&quot;;
+            var mobile = new java.util.HashSet();
+            var whatsapp = new java.util.HashSet();
+
+            if (patientMobile.indexOf(event[&apos;triggerEvent&apos;]) != -1) {
+                if (smsCountryCod) {
+                    mobile.add(event[&apos;PATMBWC&apos;].toString());
+                } else {
+                    mobile.add(event[&apos;PATMB&apos;].toString());
+                }
+                if (whatsCountryCode) {
+                    whatsapp.add(event[&apos;PATWMBWC&apos;].toString());
+                } else {
+                    whatsapp.add(event[&apos;PATWMB&apos;].toString());
+                }
+            }
+
+
+            // Iterate both sets simultaneously
+            var mobileIterator = mobile.iterator();
+            var whatsappIterator = whatsapp.iterator();
+            while (mobileIterator.hasNext() &amp;&amp; whatsappIterator.hasNext()) {
+                event[&apos;MOBILE&apos;] = mobileIterator.next();
+                event[&apos;WHATSAPP&apos;] = whatsappIterator.next();
+
+                if (smsActualEvents.includes(currentEvent)) {
+                    if ($(&apos;sendSMS&apos;) == true) {
+                        var routeEvent = router.routeMessage(&apos;AINU_SMS_Communication&apos;, JSON.stringify(event));
+                        msgSentTo.push(&quot;Message: &quot; + currentEvent + &quot; routed to:&quot; + routeEvent);
+                    }
+                }
+                if (sendEmail == true) {
+                    if (emailActualEvents.includes(currentEvent)) {
+                        var routeEvent = router.routeMessage(&apos;AINU_Email&apos;, JSON.stringify(event));
+                        msgSentTo.push(&quot;Message: &quot; + currentEvent + &quot; routed to:&quot; + routeEvent);
+                    }
+                }
+                if (waActualEvents.includes(currentEvent)) {
+                    if ($(&apos;sendWA&apos;) == true) {
+                        var routeEvent = router.routeMessage(&apos;AINU_Whatsapp&apos;, JSON.stringify(event));
+                        msgSentTo.push(&quot;Message: &quot; + currentEvent + &quot; routed to:&quot; + routeEvent);
+                    }
+                }
+            }
+        }
+    }
+}
+
+//Timezone convert
+function dateTimeConverter(dateToConvert, outputTimeZone, inputTimeZone) {
+
+    if (dateToConvert != &quot;&quot; &amp;&amp; dateToConvert != null &amp;&amp; dateToConvert != undefined) {
+
+        //Set Formatter for UTC TimeZone
+        var utcFormatter = new java.text.SimpleDateFormat(&quot;yyyyMMddHHmmssSSS&quot;);
+        utcFormatter.setTimeZone(java.util.TimeZone.getTimeZone(&quot;UTC&quot;));
+
+        //set formatter for outputTimeZone
+        var outputTimeZoneFomatter = new java.text.SimpleDateFormat(&quot;yyyyMMddHHmmssSSS&quot;);
+        outputTimeZoneFomatter.setTimeZone(java.util.TimeZone.getTimeZone(outputTimeZone));
+
+        //Convert the input date to UTC if its not already in UTC
+        var date_in_utc
+        if (inputTimeZone != &quot;UTC&quot;) {
+            var inputTimeZoneFomatter = new java.text.SimpleDateFormat(&quot;yyyyMMddHHmmssSSS&quot;);
+            inputTimeZoneFomatter.setTimeZone(java.util.TimeZone.getTimeZone(inputTimeZone));
+            date_in_utc = utcFormatter.format(inputTimeZoneFomatter.parse(dateToConvert));
+        } else {
+            date_in_utc = dateToConvert;
+        }
+        //convert the UTC time to outPut Timezone
+        var date_in_outputTimeZone = outputTimeZoneFomatter.format(utcFormatter.parse(date_in_utc));
+
+        // Parse the input date string into a Date object
+        var dateFormat = new java.text.SimpleDateFormat(&apos;yyyyMMddHHmmssSSS&apos;);
+        var inputDate = dateFormat.parse(date_in_outputTimeZone);
+
+        // Format the parsed Date object to AM/PM format
+        var AMPMFormatter = new java.text.SimpleDateFormat(&apos;dd MMM yyyy hh:mm a&apos;);
+        var AmPmConvertedDate = AMPMFormatter.format(inputDate);
+        return AmPmConvertedDate
+    }
+
+}</script>
+        </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
+      </elements>
+      <inboundTemplate encoding="base64"></inboundTemplate>
+      <outboundTemplate encoding="base64"></outboundTemplate>
+      <inboundDataType>JSON</inboundDataType>
+      <outboundDataType>JSON</outboundDataType>
+      <inboundProperties class="com.mirth.connect.plugins.datatypes.json.JSONDataTypeProperties" version="4.6.0">
+        <batchProperties class="com.mirth.connect.plugins.datatypes.json.JSONBatchProperties" version="4.6.0">
+          <splitType>JavaScript</splitType>
+          <batchScript></batchScript>
+        </batchProperties>
+      </inboundProperties>
+      <outboundProperties class="com.mirth.connect.plugins.datatypes.json.JSONDataTypeProperties" version="4.6.0">
+        <batchProperties class="com.mirth.connect.plugins.datatypes.json.JSONBatchProperties" version="4.6.0">
+          <splitType>JavaScript</splitType>
+          <batchScript></batchScript>
+        </batchProperties>
+      </outboundProperties>
+    </transformer>
+    <filter version="4.6.0">
+      <elements/>
+    </filter>
+    <transportName>JavaScript Reader</transportName>
+    <mode>SOURCE</mode>
+    <enabled>true</enabled>
+    <waitForPrevious>true</waitForPrevious>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector version="4.6.0">
+      <metaDataId>1</metaDataId>
+      <name>Destination 1</name>
+      <properties class="com.mirth.connect.connectors.vm.VmDispatcherProperties" version="4.6.0">
+        <pluginProperties/>
+        <destinationConnectorProperties version="4.6.0">
+          <queueEnabled>false</queueEnabled>
+          <sendFirst>false</sendFirst>
+          <retryIntervalMillis>10000</retryIntervalMillis>
+          <regenerateTemplate>false</regenerateTemplate>
+          <retryCount>0</retryCount>
+          <rotate>false</rotate>
+          <includeFilterTransformer>false</includeFilterTransformer>
+          <threadCount>1</threadCount>
+          <threadAssignmentVariable></threadAssignmentVariable>
+          <validateResponse>false</validateResponse>
+          <resourceIds class="linked-hash-map">
+            <entry>
+              <string>Default Resource</string>
+              <string>[Default Resource]</string>
+            </entry>
+          </resourceIds>
+          <queueBufferSize>1000</queueBufferSize>
+          <reattachAttachments>true</reattachAttachments>
+        </destinationConnectorProperties>
+        <channelId>none</channelId>
+        <channelTemplate>${message.encodedData}</channelTemplate>
+        <mapVariables/>
+      </properties>
+      <transformer version="4.6.0">
+        <elements/>
+        <inboundDataType>JSON</inboundDataType>
+        <outboundDataType>JSON</outboundDataType>
+        <inboundProperties class="com.mirth.connect.plugins.datatypes.json.JSONDataTypeProperties" version="4.6.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.json.JSONBatchProperties" version="4.6.0">
+            <splitType>JavaScript</splitType>
+            <batchScript></batchScript>
+          </batchProperties>
+        </inboundProperties>
+        <outboundProperties class="com.mirth.connect.plugins.datatypes.json.JSONDataTypeProperties" version="4.6.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.json.JSONBatchProperties" version="4.6.0">
+            <splitType>JavaScript</splitType>
+            <batchScript></batchScript>
+          </batchProperties>
+        </outboundProperties>
+      </transformer>
+      <responseTransformer version="4.6.0">
+        <elements/>
+        <inboundDataType>JSON</inboundDataType>
+        <outboundDataType>JSON</outboundDataType>
+        <inboundProperties class="com.mirth.connect.plugins.datatypes.json.JSONDataTypeProperties" version="4.6.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.json.JSONBatchProperties" version="4.6.0">
+            <splitType>JavaScript</splitType>
+            <batchScript></batchScript>
+          </batchProperties>
+        </inboundProperties>
+        <outboundProperties class="com.mirth.connect.plugins.datatypes.json.JSONDataTypeProperties" version="4.6.0">
+          <batchProperties class="com.mirth.connect.plugins.datatypes.json.JSONBatchProperties" version="4.6.0">
+            <splitType>JavaScript</splitType>
+            <batchScript></batchScript>
+          </batchProperties>
+        </outboundProperties>
+      </responseTransformer>
+      <filter version="4.6.0">
+        <elements/>
+      </filter>
+      <transportName>Channel Writer</transportName>
+      <mode>DESTINATION</mode>
+      <enabled>true</enabled>
+      <waitForPrevious>true</waitForPrevious>
+    </connector>
+  </destinationConnectors>
+  <preprocessingScript>// Modify the message variable below to pre process data
+return message;</preprocessingScript>
+  <postprocessingScript>// This script executes once after a message has been processed
+// Responses returned from here will be stored as &quot;Postprocessor&quot; in the response map
+return;</postprocessingScript>
+  <deployScript>// This script executes once when the channel is deployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</deployScript>
+  <undeployScript>// This script executes once when the channel is undeployed
+// You only have access to the globalMap and globalChannelMap here to persist data
+return;</undeployScript>
+  <properties version="4.6.0">
+    <clearGlobalChannelMap>true</clearGlobalChannelMap>
+    <messageStorageMode>PRODUCTION</messageStorageMode>
+    <encryptData>false</encryptData>
+    <encryptAttachments>false</encryptAttachments>
+    <encryptCustomMetaData>false</encryptCustomMetaData>
+    <removeContentOnCompletion>false</removeContentOnCompletion>
+    <removeOnlyFilteredOnCompletion>false</removeOnlyFilteredOnCompletion>
+    <removeAttachmentsOnCompletion>false</removeAttachmentsOnCompletion>
+    <initialState>STARTED</initialState>
+    <storeAttachments>true</storeAttachments>
+    <metaDataColumns>
+      <metaDataColumn>
+        <name>SOURCE</name>
+        <type>STRING</type>
+        <mappingName>message_source</mappingName>
+      </metaDataColumn>
+      <metaDataColumn>
+        <name>TYPE</name>
+        <type>STRING</type>
+        <mappingName>message_type</mappingName>
+      </metaDataColumn>
+      <metaDataColumn>
+        <name>EID</name>
+        <type>STRING</type>
+        <mappingName>enterpriseId</mappingName>
+      </metaDataColumn>
+      <metaDataColumn>
+        <name>FID</name>
+        <type>STRING</type>
+        <mappingName>facilityId</mappingName>
+      </metaDataColumn>
+      <metaDataColumn>
+        <name>EVENT</name>
+        <type>STRING</type>
+        <mappingName>triggerEvent</mappingName>
+      </metaDataColumn>
+      <metaDataColumn>
+        <name>RID</name>
+        <type>STRING</type>
+        <mappingName>Id</mappingName>
+      </metaDataColumn>
+    </metaDataColumns>
+    <attachmentProperties version="4.6.0">
+      <type>None</type>
+      <properties/>
+    </attachmentProperties>
+    <resourceIds class="linked-hash-map">
+      <entry>
+        <string>Default Resource</string>
+        <string>[Default Resource]</string>
+      </entry>
+    </resourceIds>
+  </properties>
+  <exportData>
+    <metadata>
+      <enabled>true</enabled>
+      <lastModified>
+        <time>1768299209614</time>
+        <timezone>Asia/Calcutta</timezone>
+      </lastModified>
+      <pruningSettings>
+        <pruneMetaDataDays>30</pruneMetaDataDays>
+        <pruneContentDays>30</pruneContentDays>
+        <archiveEnabled>true</archiveEnabled>
+        <pruneErroredMessages>true</pruneErroredMessages>
+      </pruningSettings>
+      <userId>1</userId>
+    </metadata>
+    <dependentIds/>
+    <dependencyIds/>
+    <channelTags/>
+  </exportData>
+</channel>
