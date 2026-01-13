@@ -3,7 +3,7 @@
   <nextMetaDataId>2</nextMetaDataId>
   <name>13_Registration_Polling</name>
   <description></description>
-  <revision>5</revision>
+  <revision>6</revision>
   <sourceConnector version="4.6.0">
     <metaDataId>0</metaDataId>
     <name>sourceConnector</name>
@@ -62,8 +62,8 @@ try {
 
     //Create and execute a SQL query for Registration
     try {
-        var RegisQuery= &quot;select FirstName, MiddleName, LastName, MobileNo, RegistrationNo, RegistrationId,DATE_FORMAT(RegistrationDate, &apos;%Y-%m-%d %H:%i:%s.%f&apos;) AS RegistrationDate , Id, FacilityId, EnterpriseId, Email,TitleId,WhatsAppNumber, MobileCountryCode, WhatsAppCountryCode from Registration WHERE CommunicationSent = 0 and Active = 1  limit 20&quot;;
-        var registrationData = dbConnSlave.executeCachedQuery(RegisQuery);
+        var RegistrationQuery= &quot;select FirstName, MiddleName, LastName, MobileNo, RegistrationNo, RegistrationId,DATE_FORMAT(RegistrationDate, &apos;%Y-%m-%d %H:%i:%s.%f&apos;) AS RegistrationDate , Id, FacilityId, EnterpriseId, Email,TitleId,WhatsAppNumber, MobileCountryCode, WhatsAppCountryCode from Registration WHERE CommunicationSent = 0 and Active = 1  limit 20&quot;;
+        var registrationData = dbConnSlave.executeCachedQuery(RegistrationQuery);
         while (registrationData.next()) {
             var finalMsg = {};
             //finalMsg.Id = registrationData.getString(8) != null ? registrationData.getString(8) : &quot;&quot;;
@@ -459,7 +459,7 @@ return;</undeployScript>
     <metadata>
       <enabled>true</enabled>
       <lastModified>
-        <time>1768299209614</time>
+        <time>1768300720346</time>
         <timezone>Asia/Calcutta</timezone>
       </lastModified>
       <pruningSettings>
